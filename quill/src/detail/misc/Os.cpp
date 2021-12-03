@@ -158,12 +158,17 @@ void set_thread_name(char const* name)
   (void)name;
 #elif defined(_WIN32)
   std::wstring name_ws = s2ws(name);
+//FIX: SetThreadDescription is only available in Windows 10. Disable for lower windows versions
+#if _WIN32_WINNT > 0x0603
   // Set the thread name
   HRESULT hr = SetThreadDescription(GetCurrentThread(), name_ws.data());
   if (FAILED(hr))
   {
     QUILL_THROW(QuillError{"Failed to set thread name"});
   }
+#else
+//ignore SetThreadDescription for Windows 7/8/8.1
+#endif
 #elif defined(__APPLE__)
   auto const res = pthread_setname_np(name);
   if (res != 0)
@@ -190,15 +195,22 @@ std::string get_thread_name()
   // Disabled on MINGW / Cygwin.
   return std::string{};
 #elif defined(_WIN32)
+//FIX: GetThreadDescription is only available in Windows 10. Disable for lower windows versions
   PWSTR data;
+#if _WIN32_WINNT > 0x0603
   HRESULT hr = GetThreadDescription(GetCurrentThread(), &data);
   if (FAILED(hr))
   {
     QUILL_THROW(QuillError{"Failed to get thread name"});
   }
-
   std::wstring tname{&data[0], wcslen(&data[0])};
   LocalFree(data);
+#else
+//Set ThreadName to default value for Windows 7/8/8.1
+  wchar_t legacyName[11] = L"LegacyName";
+  data = legacyName;
+  std::wstring tname = {&data[0], wcslen(&data[0])};
+#endif
   return ws2s(tname);
 #else
   // Apple, linux
